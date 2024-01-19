@@ -1,13 +1,7 @@
 import { parse } from 'csv-parse';
 import * as fs from "fs";
 import * as path from "path";
-
-type WorldCity = {
-  name: string;
-  country: string;
-  subCountry: string;
-  geoNameId: number;
-};
+import { z } from 'zod';
 
 const __dirname = new URL('.', import.meta.url).pathname;
 
@@ -19,7 +13,7 @@ const __dirname = new URL('.', import.meta.url).pathname;
 
   const fileContent = fs.readFileSync(csvFilePath, { encoding: 'utf-8' });
 
-  const records: WorldCity[] = []
+  const records: DataSchema = []
 
   const parser = parse(fileContent, {
     delimiter: ',',
@@ -27,9 +21,26 @@ const __dirname = new URL('.', import.meta.url).pathname;
     skipEmptyLines: true,
   });
 
+  const rowSchema = z.object({
+    tanggal: z.coerce.date(),
+    companyName: z.string(),
+    masuk: z.coerce.number(),
+    keluar: z.coerce.number(),
+  })
 
-  for await (const record of parser) {
+  type RowSchema = z.infer<typeof rowSchema>
+
+  const dataSchema = z.array(rowSchema)
+
+  type DataSchema = z.infer<typeof dataSchema>
+
+  const parsedData = dataSchema.parse(records)
+
+
+  for await (const record of parsedData) {
     // Work with each record
+    
+
     records.push(record);
   }
 
