@@ -3,6 +3,7 @@ import { parse } from 'csv-parse';
 import * as fs from "fs";
 import { readdir } from 'node:fs/promises';
 import * as path from "path";
+import { addToCache, readCache } from "./cache.js";
 import { DataSchema, RowSchema, dataSchema } from "./schemas.js";
 import { SUPABASE_AUTH_EMAIL, SUPABASE_AUTH_PASSWORD, supabase } from "./supabase.js";
 const __dirname = new URL('.', import.meta.url).pathname;
@@ -65,11 +66,20 @@ const insertRecords = async (records: DataSchema, alatName: string) => {
 
   const alatFiles = await readdir(alatFilesPath)
 
+  let prevAlatFile: string = null
+
 
   for await (const alatFile of alatFiles) {
 
+    const cache = readCache()
 
+    if (cache.includes(alatFile)) continue
 
+    if (prevAlatFile !== null) {
+      addToCache(prevAlatFile)
+    }
+
+    prevAlatFile = alatFile
 
     const [alatName, _] = alatFile.split('.csv')
 
