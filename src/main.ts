@@ -71,19 +71,17 @@ const insertRecords = async (records: DataSchema, alatName: string) => {
 
   for await (const alatFile of alatFiles) {
 
+    const [alatName, _] = alatFile.split('.csv')
+
     const cache = readCache()
 
-    if (cache.includes(alatFile)) continue
+    if (cache.includes(alatName)) continue
 
     if (prevAlatFile !== null) {
       addToCache(prevAlatFile)
     }
 
-    prevAlatFile = alatFile
-
-    const [alatName, _] = alatFile.split('.csv')
-
-    if (done.includes(alatName)) continue
+    prevAlatFile = alatName
 
     const alatFilePath = path.resolve(__dirname, "alat_files", alatFile)
 
