@@ -1,96 +1,97 @@
-import { createClient } from "@supabase/supabase-js";
+import { parser } from "csv";
 import { parse } from 'csv-parse';
 import * as fs from "fs";
 import { readdir } from 'node:fs/promises';
 import * as path from "path";
-import { z } from 'zod';
+import { DataSchema, dataSchema } from "./schemas.js";
+import { SUPABASE_AUTH_EMAIL, SUPABASE_AUTH_PASSWORD, supabase } from "./supabase.js";
 const __dirname = new URL('.', import.meta.url).pathname;
-
 
 // Create a single supabase client for interacting with your database
 
-function parseAndSetYear(dateString: string): Date {
-  const [day, month] = dateString.split('-');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const monthNumber = months.indexOf(month) + 1; // Months in JavaScript are 0-indexed
 
-  return new Date(2023, monthNumber - 1, Number(day));
+
+const getRecords = async (parser: parser.Parser): Promise<unknown> => {
+  const records: DataSchema = []
+      for await (const record of parser) {
+      records.push(record);
+      }
+  return records
 }
 
-const SUPABASE_URL = "https://lkxwausyseuiizopsrwi.supabase.co";
+const insertCompanyNames = async (records: DataSchema) => {
+  for await (const record of records) {
+    console.log({ name: record.companyName })
+    const { data: myData, error: myError } = await supabase.from("company").select("name");
 
-const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxreHdhdXN5c2V1aWl6b3BzcndpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQ2Nzg0MDQsImV4cCI6MjAyMDI1NDQwNH0.qRzHq2F1qqky8Q-CoFdkr6VBFm48ra3aRo6oZu4vvnQ"
+    console.log({ myData, myError })
 
-export const supabase = createClient(SUPABASE_URL, ANON_KEY);
+    const { data, error } = await supabase.from("company").insert({ name: record.companyName })
+    console.log({data, error})
+  }
+}
+
+const insertAlatName = async (alatName: string) => {
+  return await supabase.from("alat").insert({name: alatName})
+}
+
+const insertRecords = async (records: DataSchema, alatName: string) => {
+  for await (const record of records) {
+    const { data: data, error: error } = await supabase.from("record").insert({ company_name: record.companyName, tanggal: record.tanggal, masuk: record.masuk, keluar: record.keluar, alat_name: alatName })
+    console.log([data, error])
+  }
+}
+
 
 (async () => {
+
+    supabase.auth.signInWithPassword({
+  email: SUPABASE_AUTH_EMAIL,
+  password: SUPABASE_AUTH_PASSWORD
+    })
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  console.log({user})
+
 
   const alatFilesPath = __dirname + "/alat_files"
 
   const alatFiles = await readdir(alatFilesPath)
 
   for await (const alatFile of alatFiles) {
+
+    const [alatName, _] = alatFile.split('.csv')
+
+    console.log({alatName})
+
     const alatFilePath = path.resolve(__dirname, "alat_files", alatFile)
 
+    const headers = ['tanggal', 'companyName', 'masuk', 'keluar'];
+
+    const fileContent = fs.readFileSync(alatFilePath, { encoding: 'utf-8' });
+
+    const parser = parse(fileContent, {
+      delimiter: ',',
+      columns: headers,
+      skipEmptyLines: true,
+    });
+
+    const records = await getRecords(parser)
+
+    const parsedData = dataSchema.parse(records)
+
+    console.log({parsedData})
+
+    await insertCompanyNames(parsedData)
+
+    await insertAlatName(alatName)
+
+    await insertRecords(parsedData, alatName)
+
+    return parsedData
+
   }
 
-
-  const csvFilePath = path.resolve(__dirname, 'output.csv');
-
-  const headers = ['tanggal', 'companyName', 'masuk', 'keluar'];
-
-  const fileContent = fs.readFileSync(csvFilePath, { encoding: 'utf-8' });
-
-  const records: DataSchema = []
-
-  const parser = parse(fileContent, {
-    delimiter: ',',
-    columns: headers,
-    skipEmptyLines: true,
-  });
-
-  const rowSchema = z.object({
-    tanggal: z.string().transform((date) => parseAndSetYear(date)),
-    companyName: z.string(),
-    masuk: z.coerce.number(),
-    keluar: z.coerce.number(),
-  })
-
-  type RowSchema = z.infer<typeof rowSchema>
-
-  const dataSchema = z.array(rowSchema)
-
-  type DataSchema = z.infer<typeof dataSchema>
-
-  console.log({parser})
-
-
-  const alatName = "MF 190"
-
-
-
-
-  for await (const record of parser) {
-    // Work with each record
-
-    records.push(record);
-  }
-
-  const parsedData = dataSchema.parse(records)
-
-
-  for await (const record of parsedData) {
-        console.log({record})
-    const { data, error } = await supabase.from("company").insert({ name: record.companyName })
-
-    console.log({data, error})
-
-    const { data: secondData, error: secondError } = await supabase.from("record").insert({ company_name: record.companyName, tanggal: record.tanggal, masuk: record.masuk, keluar: record.keluar, alat_name: alatName })
-
-    console.log({secondData, secondError})
-  }
-
-  console.log(records)
-  return records;
 })();
 
