@@ -1,11 +1,9 @@
-import { parser } from 'csv';
-import { parse } from 'csv-parse';
+import { parse, parser } from 'csv';
+import fs from 'node:fs';
 // import * as A from 'fp-ts/Array';
 // import * as S from 'fp-ts/String';
-import * as fs from 'fs';
 import { readdir } from 'node:fs/promises';
-import * as path from 'path';
-import { addToCache, readCache } from './cache.js';
+import path from 'node:path';
 import { DataSchema, dataSchema } from './schemas.js';
 import {
   SUPABASE_AUTH_EMAIL,
@@ -33,7 +31,7 @@ const insertCompanies = async (companyNames: string[]) => {
   const { error } = await supabase.from('company').upsert(toInsert);
   console.log(`Inserted companies for ${companyNames.length} companies`);
 
-  if (error) console.error(error);
+  if (error) throw error;
 };
 
 const insertAlats = async (alatName: string, companyNames: string[]) => {
@@ -51,10 +49,11 @@ const insertAlats = async (alatName: string, companyNames: string[]) => {
   const { error } = await supabase.from('alat').upsert(toInsert);
   console.log(`Inserted alat for ${alatName}`);
 
-  if (error) console.error(error);
+  if (error) throw error;
 };
 
 const insertRecords = async (records: DataSchema, alatName: string) => {
+  // console.log(JSON.stringify(records, null, 2));
   const newRecords = records.map((record) => {
     return {
       company_name: record.companyName,
@@ -67,68 +66,57 @@ const insertRecords = async (records: DataSchema, alatName: string) => {
 
   console.log(`Inserting records for ${alatName}`);
 
-  const { error } = await supabase.from('record').insert(newRecords);
+  const { error } = await supabase.from('record').upsert(newRecords);
 
   console.log(`Inserted records for ${alatName}`);
 
-  if (error) console.error(error);
+  if (error) throw error;
 };
 
 (async () => {
-  await supabase.auth.signInWithPassword({
-    email: SUPABASE_AUTH_EMAIL,
-    password: SUPABASE_AUTH_PASSWORD,
-  });
-
-  const alatFilesPath = __dirname + '/alat_files';
-
-  const alatFiles = await readdir(alatFilesPath);
-
-  let prevAlatFile: string = null;
-
-  for await (const alatFile of alatFiles) {
-    const [alatName, _] = alatFile.split('.csv');
-
-    if (alatName !== 'WINGNUT') continue;
-
-    const cache = readCache();
-
-    if (cache.includes(alatName)) continue;
-
-    if (prevAlatFile !== null) {
-      addToCache(prevAlatFile);
-    }
-
-    prevAlatFile = alatName;
-
-    const alatFilePath = path.resolve(__dirname, 'alat_files', alatFile);
-
-    const headers = ['tanggal', 'companyName', 'masuk', 'keluar'];
-
-    const fileContent = fs.readFileSync(alatFilePath, { encoding: 'utf-8' });
-
-    const parser = parse(fileContent, {
-      delimiter: ',',
-      columns: headers,
-      skipEmptyLines: true,
+  try {
+    await supabase.auth.signInWithPassword({
+      email: SUPABASE_AUTH_EMAIL,
+      password: SUPABASE_AUTH_PASSWORD,
     });
 
-    const records = await getRecords(parser);
+    const alatFilesPath = __dirname + '/alat_files';
 
-    console.log(`Starting reading for ${alatName}`);
+    const alatFiles = await readdir(alatFilesPath);
 
-    const parsedData = dataSchema.parse(records);
+    const clearRecordsData = async () => {
+      const { error } = await supabase.rpc(
+        'delete_record_company_name_and_alat_table_data',
+      );
+      if (error) throw error;
+    };
 
-    const companyNames = parsedData.map((record) => record.companyName);
+    await clearRecordsData();
 
-    const uniqueCompanyNames = [...new Set(companyNames)];
+    for await (const alatFile of alatFiles) {
+      const [alatName, _] = alatFile.split('.csv');
 
-    await insertCompanies(uniqueCompanyNames);
+      const alatFilePath = path.resolve(__dirname, 'alat_files', alatFile);
+      const headers = ['tanggal', 'companyName', 'masuk', 'keluar'];
+      const fileContent = fs.readFileSync(alatFilePath, { encoding: 'utf-8' });
+      const parser = parse(fileContent, {
+        delimiter: ',',
+        columns: headers,
+        skipEmptyLines: true,
+      });
+      const records = await getRecords(parser);
+      console.log(`Starting reading for ${alatName}`);
+      const parsedData = dataSchema.parse(records);
+      const companyNames = parsedData.map((record) => record.companyName);
+      const uniqueCompanyNames = [...new Set(companyNames)];
+      await insertCompanies(uniqueCompanyNames);
+      await insertAlats(alatName, uniqueCompanyNames);
 
-    await insertAlats(alatName, uniqueCompanyNames);
+      await insertRecords(parsedData, alatName);
+    }
 
-    await insertRecords(parsedData, alatName);
+    return;
+  } catch (e) {
+    console.error(e);
   }
-
-  return;
 })();
