@@ -38,6 +38,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",
     "csv": "^6.3.6",
+    "fp-ts": "^2.16.3",
     "tslib": "~2.6",
     "zod": "^3.22.4"
   },
