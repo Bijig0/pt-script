@@ -10,7 +10,10 @@ import {
   SUPABASE_AUTH_PASSWORD,
   supabase,
 } from './supabase.js';
+
 const __dirname = new URL('.', import.meta.url).pathname;
+
+const alatFilesPath = __dirname + '/alat_files_2024';
 
 // Create a single supabase client for interacting with your database
 
@@ -79,8 +82,6 @@ const insertRecords = async (records: DataSchema, alatName: string) => {
       email: SUPABASE_AUTH_EMAIL,
       password: SUPABASE_AUTH_PASSWORD,
     });
-
-    const alatFilesPath = __dirname + '/alat_files';
 
     const alatFiles = await readdir(alatFilesPath);
 
