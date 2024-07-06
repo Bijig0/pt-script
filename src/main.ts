@@ -11,9 +11,12 @@ import {
   supabase,
 } from './supabase.js';
 
+// const ALAT_FILE_DIRNAME = 'alat_files_2024';
+const ALAT_FILE_DIRNAME = 'alat_files_2024';
+
 const __dirname = new URL('.', import.meta.url).pathname;
 
-const alatFilesPath = __dirname + '/alat_files_2024';
+const alatFilesPath = __dirname + `/${ALAT_FILE_DIRNAME}`;
 
 // Create a single supabase client for interacting with your database
 
@@ -76,6 +79,10 @@ const insertRecords = async (records: DataSchema, alatName: string) => {
   if (error) throw error;
 };
 
+const createAlatFilePath = (alatFile: string): string => {
+  return path.resolve(__dirname, ALAT_FILE_DIRNAME, alatFile);
+};
+
 (async () => {
   try {
     await supabase.auth.signInWithPassword({
@@ -97,7 +104,8 @@ const insertRecords = async (records: DataSchema, alatName: string) => {
     for await (const alatFile of alatFiles) {
       const [alatName, _] = alatFile.split('.csv');
 
-      const alatFilePath = path.resolve(__dirname, 'alat_files', alatFile);
+      const alatFilePath = createAlatFilePath(alatFile);
+
       const headers = ['tanggal', 'companyName', 'masuk', 'keluar'];
       const fileContent = fs.readFileSync(alatFilePath, { encoding: 'utf-8' });
       const parser = parse(fileContent, {
@@ -106,8 +114,10 @@ const insertRecords = async (records: DataSchema, alatName: string) => {
         skipEmptyLines: true,
       });
       const records = await getRecords(parser);
+      console.log({ records });
       console.log(`Starting reading for ${alatName}`);
       const parsedData = dataSchema.parse(records);
+      console.log({ parsedData });
       const companyNames = parsedData.map((record) => record.companyName);
       const uniqueCompanyNames = [...new Set(companyNames)];
       await insertCompanies(uniqueCompanyNames);
