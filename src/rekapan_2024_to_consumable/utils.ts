@@ -107,3 +107,54 @@ export const coerceToDate = (
   }
   return { value, error: null };
 };
+
+type Row = (string | number)[];
+
+export function partitionByMonth(data: Row[]): Row[][] {
+  const partitions: { [key: string]: Row[] } = {};
+
+  for (const row of data) {
+    const date = new Date(row[0]);
+    const monthKey = `${date.getFullYear()}-${String(
+      date.getMonth() + 1,
+    ).padStart(2, '0')}`;
+
+    if (!(monthKey in partitions)) {
+      partitions[monthKey] = [];
+    }
+    partitions[monthKey].push(row);
+  }
+
+  return Object.values(partitions);
+}
+
+export function getColumnSums(matrix: number[][]): number[] {
+  if (matrix.length === 0) return [];
+
+  // Initialize an array with zeros to store the column sums
+  const sums = new Array(matrix[0].length).fill(0);
+
+  // Iterate over each row in the matrix
+  for (const row of matrix) {
+    // Iterate over each column in the row
+    for (let i = 0; i < row.length; i++) {
+      sums[i] += row[i];
+    }
+  }
+
+  return sums;
+}
+
+export function zip<S1, S2>(
+  firstCollection: Array<S1>,
+  lastCollection: Array<S2>,
+): Array<[S1, S2]> {
+  const length = Math.min(firstCollection.length, lastCollection.length);
+  const zipped: Array<[S1, S2]> = [];
+
+  for (let index = 0; index < length; index++) {
+    zipped.push([firstCollection[index], lastCollection[index]]);
+  }
+
+  return zipped;
+}
