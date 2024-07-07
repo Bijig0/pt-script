@@ -176,7 +176,7 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
   console.log({ undefinedAs0 });
 
   const dateAsDateObject = undefinedAs0.map((row) => {
-    const dateString = row[TGL_COLUMN_INDEX] as string | Date;
+    const dateString = row[TGL_COLUMN_INDEX] as string | Date | number;
     const { value: date, error } = coerceToDate(dateString);
     return [date, ...row.slice(1)];
   });
@@ -257,12 +257,14 @@ const getRows = (worksheet: ExcelJS.Worksheet): Row[] => {
   return rows;
 };
 
-export const writeRowsToWorksheet = (
+export const recreateWorksheetWithNewRows = (
   rows: Row[],
   worksheet: ExcelJS.Worksheet,
+  workbook: ExcelJS.Workbook,
 ) => {
-  worksheet.spliceRows(1, worksheet.rowCount);
-  worksheet.addRows(rows);
+  workbook.removeWorksheet(worksheet.id);
+  const newWorksheet = workbook.addWorksheet(worksheet.name);
+  newWorksheet.addRows(rows);
 };
 
 export function addSisaSewaAlatAmount(
@@ -276,7 +278,7 @@ export function addSisaSewaAlatAmount(
 
     const annotatedRows = runSingleWorksheetLogic(worksheetRows);
 
-    writeRowsToWorksheet(annotatedRows, worksheet);
+    recreateWorksheetWithNewRows(annotatedRows, worksheet, workbook);
   });
 
   return workbook;
