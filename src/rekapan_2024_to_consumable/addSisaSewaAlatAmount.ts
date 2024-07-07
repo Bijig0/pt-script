@@ -133,21 +133,43 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
 
   console.log({ headerLength });
 
+  console.log({ rows });
+
   const slicedRows = rows.map((row) => row.slice(1));
 
   console.log({ slicedRows });
 
-  const recordRows = slicedRows.slice(1);
+  const nonHeaderRows = slicedRows.slice(1);
+
+  const emptyItemsToUndefinedNonHeaderRows = nonHeaderRows.map((row) => {
+    return [...row];
+  });
+
+  console.log({ nonHeaderRows });
+
+  const recordRows = emptyItemsToUndefinedNonHeaderRows.filter((row) => {
+    return (
+      coerceToDate(row[0]).value !== undefined &&
+      coerceToDate(row[0]).value !== null
+    );
+  });
 
   console.log({ recordRows });
 
   const normalizedRecordRows = recordRows.map((row) => {
-    return sliceAndFill(row, headerLength, undefined);
+    return sliceAndFill(row, headerLength - 1, undefined);
+  });
+
+  const allNumbersRecordRows = normalizedRecordRows.map((row) => {
+    return row.map((value) => {
+      if (typeof value === 'number') return value;
+      return 0;
+    });
   });
 
   console.log({ normalizedRecordRows });
 
-  const undefinedAs0 = normalizedRecordRows.map((row) => {
+  const undefinedAs0 = allNumbersRecordRows.map((row) => {
     return [...row].map((value) => (typeof value === 'undefined' ? 0 : value));
   });
 
@@ -247,6 +269,9 @@ export function addSisaSewaAlatAmount(
   workbook: ExcelJS.Workbook,
 ): ExcelJS.Workbook {
   workbook.eachSheet((worksheet) => {
+    // if (worksheet.name !== 'BPK ROBI ONE TOWER') return;
+    console.log({ name: worksheet.name });
+
     const worksheetRows = getRows(worksheet);
 
     const annotatedRows = runSingleWorksheetLogic(worksheetRows);
@@ -275,7 +300,7 @@ async function main() {
 
   const processedWorkbook = addSisaSewaAlatAmount(standardizedWorkbook);
 
-  //   standardizedWorkbook.xlsx.writeFile(outFilePath);
+  processedWorkbook.xlsx.writeFile(outFilePath);
 }
 
 main();

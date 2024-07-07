@@ -95,14 +95,12 @@ export const getCellValue = (row: ExcelJS.Row, columnIndex: number) => {
   return cell.value;
 };
 
-export const coerceToDate = (
-  value: string | null | Date | Record<string, any>,
-) => {
-  if (isObject(value)) return { value: null, error: null };
-  if (value === null) return { value, error: null };
+export const coerceToDate = (value: string | Date | number) => {
   if (value instanceof Date) return { value, error: null };
   try {
-    if (typeof value === 'string')
+    if (typeof value === 'number') {
+      return { value: null, error: new Error('Invalid date') };
+    } else if (typeof value === 'string')
       return { value: parseDateDDMMYYYY(value), error: null };
   } catch (error) {
     if (error instanceof Error) {
