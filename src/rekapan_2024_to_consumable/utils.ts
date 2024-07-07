@@ -1,5 +1,4 @@
 import {
-  addDays,
   differenceInYears,
   getDate,
   getMonth,
@@ -52,9 +51,9 @@ export function parseDateDDMMYYYY(dateString: string): Date {
   }
 
   // JavaScript months are 0-indexed, so we subtract 1 from the month
-  const tempDate = new Date(year, month - 1, day);
+  const date = new Date(year, month - 1, day);
   // FUCK IT TEMP cuz i dont fukcing know how to make the date object not not remove one day
-  const date = addDays(tempDate, 1);
+  // const date = addDays(tempDate, 1);
 
   // Check if the date is valid
   if (isNaN(date.getTime())) {

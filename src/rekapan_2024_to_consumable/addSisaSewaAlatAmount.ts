@@ -113,12 +113,12 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
 
   console.log({ dateAsDateObject });
 
-  const dateAsFormattedDateString = dateAsDateObject.map((row) => {
-    const date = row[TGL_COLUMN_INDEX] as Date;
-    return [formatDateToDDMMYYYY(date), ...row.slice(1)];
-  });
+  // const dateAsFormattedDateString = dateAsDateObject.map((row) => {
+  //   const date = row[TGL_COLUMN_INDEX] as Date;
+  //   return [formatDateToDDMMYYYY(date), ...row.slice(1)];
+  // });
 
-  const partititionedData = partitionByMonth(dateAsFormattedDateString);
+  const partititionedData = partitionByMonth(dateAsDateObject);
 
   console.log({ partititionedData });
 
@@ -136,6 +136,8 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
   };
 
   const withTotals = addTotals(partititionedData);
+
+  console.log({ withTotals });
 
   const addInitialSisaAlatRow = (partitionedData: Row[][]) => {
     // [0] is just an arbitrary row since all the lengths are uniform
@@ -161,11 +163,19 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
     return withHeader;
   };
 
-  const withInitialSisaAlatRow = addInitialSisaAlatRow(withTotals);
+  const asDateString = withTotals.map((partition) => {
+    return partition.map((row) => {
+      const date = row[TGL_COLUMN_INDEX] as Date | string;
+      if (typeof date === 'string') return row;
+      return [formatDateToDDMMYYYY(date), ...row.slice(1)];
+    });
+  });
+
+  const withInitialSisaAlatRow = addInitialSisaAlatRow(asDateString);
 
   const withHeader = addHeader(withInitialSisaAlatRow);
 
-  console.log({ withHeader });
+  // console.log({ withHeader });
 
   const flattened = withHeader.flat();
 
