@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
 import {
@@ -6,58 +5,15 @@ import {
   standardizeDates,
   truncateWorksheetRows,
 } from './main.js';
-import { coerceToDate, getColumnSums, partitionByMonth, zip } from './utils.js';
+import {
+  coerceToDate,
+  createArray,
+  getColumnSums,
+  partitionByMonth,
+} from './utils.js';
 
 const badStuff = [];
 const TGL_COLUMN_INDEX = 0;
-const VALUE_COLUMN_INDEX = 1;
-
-export const indexToMonth = {
-  0: 'January',
-  1: 'February',
-  2: 'March',
-  3: 'April',
-  4: 'May',
-  5: 'June',
-  6: 'July',
-  7: 'August',
-  8: 'September',
-  9: 'October',
-  10: 'November',
-  11: 'December',
-} satisfies Record<number, (typeof monthNames)[number]>;
-export const monthNames = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-export const getRunningTotal = (
-  companyNames: Record<string, Data>,
-  companyName: string,
-) => {
-  let runningTotal: number = 0;
-  const selectedCompanyName = companyNames[companyName];
-
-  const data = selectedCompanyName.dateDatas;
-  console.log({ data });
-  Object.values(data).forEach(({ monthTotal }) => {
-    console.log({ monthTotal });
-    runningTotal += monthTotal;
-  });
-
-  console.log({ runningTotal });
-  return runningTotal;
-};
 
 type Data = {
   dateDatas: {
@@ -109,88 +65,6 @@ export const populateHeader = (row: ExcelJS.Row): HeaderReturn => {
   // console.log({ headerRow });
 };
 
-type RunningTotalLogicArgs = {
-  row: {
-    value: ExcelJS.CellValue;
-    index: number;
-  }[];
-  month: number;
-  companyNames: Record<string, Data>;
-  columnIndexByCompanyName: Record<number, string>;
-  currentMonth: string | null;
-  date: Date;
-};
-
-type RunningTotalLogicReturn = {
-  newRows: NewRows;
-};
-
-/**
- *
- * @param args
- * @returns
- */
-const runningTotalLogic = (
-  args: RunningTotalLogicArgs,
-): RunningTotalLogicReturn => {
-  const {
-    row,
-    month,
-    companyNames,
-    columnIndexByCompanyName,
-    currentMonth,
-    date,
-  } = args;
-  for (const cell of row) {
-    const { value, index } = cell;
-    // console.log({ value, name: worksheet.name });
-    const parsedValue = typeof value !== 'number' ? 0 : value;
-    const companyName = z.string().parse(columnIndexByCompanyName[index]);
-    const monthString = z.string().parse(indexToMonth[month]);
-
-    const newRows: NewRows = [];
-
-    // initialize
-    if (!(companyName in companyNames)) {
-      companyNames[companyName] = {
-        dateDatas: {
-          [monthString]: {
-            monthTotal: 0,
-          },
-        },
-      };
-    }
-
-    if (currentMonth === null) {
-      // currentMonth = monthString;
-    }
-
-    const runningTotal = getRunningTotal(companyNames, companyName);
-
-    const valueToAdd = parsedValue + runningTotal;
-
-    if (monthString in companyNames[companyName].dateDatas) {
-      companyNames[companyName].dateDatas[monthString].monthTotal += valueToAdd;
-
-      // currentMonth = monthString;
-    }
-
-    const monthChanged = monthString !== currentMonth;
-
-    if (monthChanged) {
-      const prevMonth = currentMonth;
-      newRows.push([`${indexToMonth[prevMonth]} ${runningTotal}`]);
-      // currentMonth = monthString;
-    }
-
-    newRows.push([format(date, 'dd/MM/yyyy'), valueToAdd]);
-
-    return { newRows };
-
-    console.dir({ companyNames }, { depth: null });
-  }
-};
-
 export const getDateFromCellValue = (unparsedDate: ExcelJS.CellValue) => {
   const dateSchema = z.date().or(z.string().or(z.object({})).nullable());
   const uncoercedDateResult = dateSchema.safeParse(unparsedDate);
@@ -200,26 +74,6 @@ export const getDateFromCellValue = (unparsedDate: ExcelJS.CellValue) => {
   const { value: date, error } = coerceToDate(uncoercedDate);
 
   return { date, error };
-};
-
-const transformRowValues = (
-  row: ExcelJS.Row,
-  companyNameByColumnIndex: Record<string, number>,
-) => {
-  const rowValues = row.values as ExcelJS.CellValue[];
-  const rowValuesWithoutHeader = rowValues.slice(1);
-  const withIndexes = rowValuesWithoutHeader.map((value, index) => ({
-    value,
-    index,
-  }));
-  const columnValueIndexes = Object.values(
-    companyNameByColumnIndex,
-  ) as number[];
-
-  const rowValuesAtColumnIndexes = withIndexes.filter((value) =>
-    columnValueIndexes.includes(value.index),
-  );
-  return rowValuesAtColumnIndexes;
 };
 
 const checkIfRowIsEmpty = (row: ExcelJS.Row) => {
@@ -256,39 +110,25 @@ const getPartitionTotal = (partition: Row[]) => {
   return annotated;
 };
 
+/**
+ * The calculation goes month 1's total is the sum of all previous months
+ * So in here, we get the until, which is the index of the current month
+ * and then get the totals for the months before that
+ * to become the totals for the current month
+ */
 export const getTotal = ({
-  currentMonthPartition,
-  prevMonthPartition,
+  partitions,
+  until,
 }: {
-  currentMonthPartition: Row[];
-  prevMonthPartition: Row[];
+  partitions: Row[][];
+  until: number;
 }) => {
-  const partitionTotal = getPartitionTotal(currentMonthPartition);
-  console.log({ partitionTotal });
-  const prevMonthTotal = getPartitionTotal(prevMonthPartition);
-  console.log({ prevMonthTotal });
-  const summed = getColumnSums([partitionTotal, prevMonthTotal]);
-  console.log({ summed });
-  return summed;
+  const partitionsTotals = partitions.slice(0, until).map(getPartitionTotal);
+  const totals = getColumnSums(partitionsTotals);
+  return totals;
 };
 
-export const runSingleWorksheetLogic = (
-  worksheet: ExcelJS.Worksheet,
-): (string | number)[][] => {
-  let newRows: (string | number)[][] = [];
-
-  const rows: NewRows = [];
-
-  worksheet.eachRow((row, rowNumber) => {
-    console.log(row.values);
-    console.log({ length: row.values.length });
-    const rowHasValues = checkIfRowShouldBePushed(row);
-    console.log({ rowHasValues });
-    if (!rowHasValues) return;
-    // @ts-ignore
-    rows.push(row.values);
-  });
-
+export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
   const headerLength = rows[0].length;
 
   console.log({ headerLength });
@@ -326,20 +166,12 @@ export const runSingleWorksheetLogic = (
   console.log({ partititionedData });
 
   const addTotals = (partitionedData: Row[][]) => {
-    const oneBackedupPartitionedData = [undefined, ...partitionedData];
-
-    const withFullTotals = zip(oneBackedupPartitionedData, partitionedData).map(
-      ([prevMonthPartition, currentMonthPartition]) => {
-        // Only for the first month where there is no previous monthj to get additional running total data from
-        if (prevMonthPartition === undefined) {
-          const total = getPartitionTotal(currentMonthPartition);
-          const totalAnnoated = ['Sisa Alat', ...total];
-          return [...currentMonthPartition, totalAnnoated];
-        } else {
-          const total = getTotal({ currentMonthPartition, prevMonthPartition });
-          const totalAnnoated = ['Sisa Alat', ...total];
-          return [...currentMonthPartition, totalAnnoated];
-        }
+    const withFullTotals = partitionedData.map(
+      (currentMonthPartition, index) => {
+        const until = index + 1;
+        const total = getTotal({ partitions: partitionedData, until });
+        const totalAnnoated = ['Sisa Alat', ...total];
+        return [...currentMonthPartition, totalAnnoated];
       },
     );
 
@@ -348,73 +180,79 @@ export const runSingleWorksheetLogic = (
 
   const withTotals = addTotals(partititionedData);
 
-  console.log({ withTotals });
+  const addInitialSisaAlatRow = (partitionedData: Row[][]) => {
+    // [0] is just an arbitrary row since all the lengths are uniform
+    const rowLength = rows[0].length;
+    const withInitialSisaAlatRow = partitionedData.map((partition, index) => {
+      if (index !== 0) return partition;
+      console.log({ rowLength });
+      const createdArray = createArray(rowLength - 1, 0);
+      console.log({ createdArray });
+      const initialSisaAlatRow = ['Sisa Alat', ...createdArray];
 
-  // worksheet.eachRow((row, rowNumber) => {
-  //   console.log({ row, rowNumber });
-  //   if (rowNumber === 1) {
-  //     const {
-  //       newRows: _newRows,
-  //       companyNameByColumnIndex: _companyNameByColumnIndex,
-  //       columnIndexByCompanyName: _columnIndexByCompanyName,
-  //     } = populateHeader(row);
-  //     newRows = _newRows;
-  //     companyNameByColumnIndex = _companyNameByColumnIndex;
-  //     columnIndexByCompanyName = _columnIndexByCompanyName;
-  //     return;
-  //   }
+      return [initialSisaAlatRow, ...partition];
+    });
+    return withInitialSisaAlatRow;
+  };
 
-  //   const unParsedRowTgl = getCellValue(row, TGL_COLUMN_INDEX);
-  //   const { date, error } = getDateFromCellValue(unParsedRowTgl);
+  const addHeader = (partitioneddata: Row[][]) => {
+    const header = rows[0].slice(1);
+    const withHeader = partitioneddata.map((partition, index) => {
+      if (index !== 0) return partition;
+      return [header, ...partition];
+    });
+    return withHeader;
+  };
 
-  //   if (error) return;
-  //   if (date === null) return;
+  const withInitialSisaAlatRow = addInitialSisaAlatRow(withTotals);
 
-  //   const transformedRowValues = transformRowValues(
-  //     row,
-  //     companyNameByColumnIndex,
-  //   );
+  const withHeader = addHeader(withInitialSisaAlatRow);
 
-  //   const month = getMonth(date);
+  console.log({ withHeader });
 
-  //   let currentMonth: string | null = null;
+  const flattened = withHeader.flat();
 
-  //   runningTotalLogic({
-  //     row: transformedRowValues,
-  //     month,
-  //     companyNames,
-  //     columnIndexByCompanyName,
-  //     currentMonth,
-  //     date,
-  //   });
-  // });
-
-  // Add the last month's total
-
-  // if (currentMonth !== null) {
-  //   runningTotal += monthTotal;
-  //   newRows.push([`${monthNames[currentMonth]} ${runningTotal}`]);
-  // }
+  console.log({ flattened });
 
   // Clear the worksheet and add the new rows
+
+  return flattened;
+};
+
+const getRows = (worksheet: ExcelJS.Worksheet): Row[] => {
+  const rows: Row[] = [];
+
+  worksheet.eachRow((row, rowNumber) => {
+    console.log(row.values);
+    console.log({ length: row.values.length });
+    const rowHasValues = checkIfRowShouldBePushed(row);
+    console.log({ rowHasValues });
+    if (!rowHasValues) return;
+    // @ts-ignore
+    rows.push(row.values);
+  });
+
+  return rows;
+};
+
+export const writeRowsToWorksheet = (
+  rows: Row[],
+  worksheet: ExcelJS.Worksheet,
+) => {
   worksheet.spliceRows(1, worksheet.rowCount);
-  worksheet.addRows(newRows);
-
-  console.log(JSON.stringify(newRows, null, 2));
-
-  return newRows;
+  worksheet.addRows(rows);
 };
 
 export function addSisaSewaAlatAmount(
   workbook: ExcelJS.Workbook,
 ): ExcelJS.Workbook {
-  const selectedWorksheet = workbook.worksheets[3];
+  workbook.eachSheet((worksheet) => {
+    const worksheetRows = getRows(worksheet);
 
-  runSingleWorksheetLogic(selectedWorksheet);
+    const annotatedRows = runSingleWorksheetLogic(worksheetRows);
 
-  //   workbook.eachSheet((worksheet) => {
-  //     runSingleWorksheetLogic(worksheet);
-  //   });
+    writeRowsToWorksheet(annotatedRows, worksheet);
+  });
 
   return workbook;
 }

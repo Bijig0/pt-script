@@ -15,6 +15,10 @@ export function formatDateToDDMMYYYY(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
+export function createArray<T>(length: number, fillValue: T): T[] {
+  return new Array(length).fill(fillValue);
+}
+
 export function swapDayAndMonth(date: Date): Date {
   const originalDay = getDate(date);
   const originalMonth = getMonth(date); // 0-indexed
@@ -158,3 +162,41 @@ export function zip<S1, S2>(
 
   return zipped;
 }
+
+export const indexToMonth = {
+  0: 'January',
+  1: 'February',
+  2: 'March',
+  3: 'April',
+  4: 'May',
+  5: 'June',
+  6: 'July',
+  7: 'August',
+  8: 'September',
+  9: 'October',
+  10: 'November',
+  11: 'December',
+} satisfies Record<number, (typeof monthNames)[number]>;
+export const monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+export const isRegularMatrix = (matrix) =>
+  matrix.every((x) => x.length === matrix[0].length);
+
+export const assert = (condition: boolean, message = 'Assertion failed') => {
+  if (!condition) {
+    throw new Error(message);
+  }
+};
