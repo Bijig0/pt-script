@@ -85,7 +85,11 @@ async function main() {
 
   const processedWorkbook = addSisaSewaAlatAmount(standardizedWorkbook);
 
-  processedWorkbook.xlsx.writeFile(outFilePath);
+  // const groupedWorkbook = groupByMonth(processedWorkbook);
+
+  // console.log({ groupedWorkbook });
+
+  // processedWorkbook.xlsx.writeFile(outFilePath);
 }
 
 main();

@@ -204,8 +204,6 @@ export function addSisaSewaAlatAmount(
   workbook.eachSheet((worksheet) => {
     // if (worksheet.name !== 'BPK ROBI ONE TOWER') return;
 
-    if (worksheet.name !== 'TARSIM') return;
-
     const worksheetRows = getRows(worksheet);
 
     const annotatedRows = runSingleWorksheetLogic(worksheetRows);
