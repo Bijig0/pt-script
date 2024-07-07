@@ -6,9 +6,11 @@ import {
   truncateWorksheetRows,
 } from './main.js';
 import {
+  assert,
   coerceToDate,
   createArray,
   getColumnSums,
+  isRegularMatrix,
   partitionByMonth,
 } from './utils.js';
 
@@ -161,8 +163,9 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
   });
 
   const allNumbersRecordRows = normalizedRecordRows.map((row) => {
-    return row.map((value) => {
+    return row.map((value, index) => {
       if (typeof value === 'number') return value;
+      if (typeof value !== 'number' && index === TGL_COLUMN_INDEX) return value;
       return 0;
     });
   });
@@ -208,7 +211,7 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
     const withInitialSisaAlatRow = partitionedData.map((partition, index) => {
       if (index !== 0) return partition;
       console.log({ rowLength });
-      const createdArray = createArray(rowLength - 1, 0);
+      const createdArray = createArray(rowLength - 2, 0);
       console.log({ createdArray });
       const initialSisaAlatRow = ['Sisa Alat', ...createdArray];
 
@@ -235,6 +238,8 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
   const flattened = withHeader.flat();
 
   console.log({ flattened });
+
+  assert(isRegularMatrix(flattened), 'Not uniform regular matrix');
 
   // Clear the worksheet and add the new rows
 
