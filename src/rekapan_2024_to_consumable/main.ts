@@ -1,7 +1,6 @@
-import { isBefore } from 'date-fns';
 import ExcelJS from 'exceljs';
-import { formatDateToDDMMYYYY, swapDayAndMonth } from './utils.js';
 import { addSisaSewaAlatAmount } from './addSisaSewaAlatAmount.js';
+import { standardizeDates } from './standardizeDates/standardizeDates.js';
 
 export async function truncateWorksheetRows(
   workbook: ExcelJS.Workbook,
@@ -65,46 +64,6 @@ export function removeSecondColumn(
   return workbook;
 }
 
-export function standardizeDates(workbook: ExcelJS.Workbook): ExcelJS.Workbook {
-  workbook.eachSheet((worksheet) => {
-    // Find the TGL column
-    const TGL_COLUMN_INDEX = 1;
-
-    for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber++) {
-      const prevCell = worksheet.getCell(rowNumber - 1, TGL_COLUMN_INDEX);
-      const currentCell = worksheet.getCell(rowNumber, TGL_COLUMN_INDEX);
-      if (!prevCell.value) continue;
-      if (prevCell.value === 'Tgl') continue;
-      if (!currentCell.value) continue;
-
-      console.log({ prevCellValue: prevCell.value });
-
-      const currentCellAfterPrevCell = isBefore(
-        prevCell.value,
-        currentCell.value,
-      );
-
-      if (currentCellAfterPrevCell) continue;
-
-      const currentCellAsMMDDYYYY = swapDayAndMonth(currentCell.value);
-      const currentCellAfterPrevCellMMDDYYYY = isBefore(
-        prevCell.value,
-        currentCellAsMMDDYYYY,
-      );
-
-      if (currentCellAfterPrevCellMMDDYYYY) {
-        currentCell.value = formatDateToDDMMYYYY(currentCellAsMMDDYYYY);
-      }
-
-      console.log(
-        `Standardized dates in worksheet "${worksheet.name}" Row number:${rowNumber}`,
-      );
-    }
-  });
-
-  return workbook;
-}
-
 // Example usage remains the same as in the previous example
 // Example usage remains the same as in the previous example
 
@@ -126,11 +85,9 @@ async function main() {
 
   const processedWorkbook = addSisaSewaAlatAmount(standardizedWorkbook);
 
-  standardizedWorkbook.xlsx.writeFile(outFilePath);
+  processedWorkbook.xlsx.writeFile(outFilePath);
 }
 
 main();
 
-[
-  'empty item', "24/4/2024", -30, -24, -24, -16, -7, -30, -18, -40, -10
-]
+['empty item', '24/4/2024', -30, -24, -24, -16, -7, -30, -18, -40, -10];

@@ -1,91 +1,20 @@
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
-import {
-  removeSecondColumn,
-  standardizeDates,
-  truncateWorksheetRows,
-} from './main.js';
+import { getRows } from './getRows.js';
+import { removeSecondColumn, truncateWorksheetRows } from './main.js';
+import { standardizeDates } from './standardizeDates/standardizeDates.js';
+import { Row } from './types.js';
 import {
   assert,
   coerceToDate,
   createArray,
+  formatDateToDDMMYYYY,
   getColumnSums,
   isRegularMatrix,
   partitionByMonth,
 } from './utils.js';
 
-const badStuff = [];
 const TGL_COLUMN_INDEX = 0;
-
-type Data = {
-  dateDatas: {
-    [date: string]: {
-      monthTotal: number;
-    };
-  };
-};
-
-type NewRows = (string | number)[][];
-
-type HeaderReturn = {
-  newRows: NewRows;
-  companyNameByColumnIndex: Record<string, number>;
-  columnIndexByCompanyName: Record<number, string>;
-};
-
-export const populateHeader = (row: ExcelJS.Row): HeaderReturn => {
-  const stringArraySchema = z.array(z.string().optional());
-  const headerRow = stringArraySchema.parse(row.values);
-  const headerRowStrings = headerRow.filter((value) => Boolean(value));
-  // TGL is in the first column
-  const headerRowAlatNames = headerRowStrings;
-  const newRows: NewRows = [];
-  console.log(headerRowAlatNames);
-
-  const companyNameByColumnIndex = {} as Record<string, number>;
-  const columnIndexByCompanyName = {} as Record<number, string>;
-
-  const initialize = () => {
-    headerRowAlatNames.forEach((alatName, index) => {
-      columnIndexByCompanyName[index + 1] = alatName;
-      companyNameByColumnIndex[alatName] = index + 1;
-    });
-  };
-
-  const addHeaderRows = () => {
-    newRows.push(['TGL', ...headerRowAlatNames]);
-    const length = headerRowAlatNames.length + 1;
-    const arr = Array.from({ length }, (_, i) => i + 1);
-    newRows.push(arr.map((_, index) => (index === 0 ? 'Sisa Alat' : 0)));
-  };
-
-  initialize();
-  addHeaderRows();
-
-  return { newRows, companyNameByColumnIndex, columnIndexByCompanyName };
-
-  // console.log({ headerRow });
-};
-
-export const getDateFromCellValue = (unparsedDate: ExcelJS.CellValue) => {
-  const dateSchema = z.date().or(z.string().or(z.object({})).nullable());
-  const uncoercedDateResult = dateSchema.safeParse(unparsedDate);
-  const uncoercedDate = uncoercedDateResult.success
-    ? uncoercedDateResult.data
-    : null;
-  const { value: date, error } = coerceToDate(uncoercedDate);
-
-  return { date, error };
-};
-
-const checkIfRowIsEmpty = (row: ExcelJS.Row) => {
-  const rowValues = row.values as ExcelJS.CellValue[];
-  return rowValues.length !== 1;
-};
-
-const checkIfRowShouldBePushed = (row: ExcelJS.Row) => {
-  return checkIfRowIsEmpty(row);
-};
 
 function sliceAndFill<T>(arr: T[], endIndex: number, fillValue: T): T[] {
   // Slice the array until the specified index (exclusive)
@@ -99,8 +28,6 @@ function sliceAndFill<T>(arr: T[], endIndex: number, fillValue: T): T[] {
 
   return slicedArray;
 }
-
-type Row = (string | number)[];
 
 const getPartitionTotal = (partition: Row[]) => {
   const numberPartitionSchema = z.array(z.number());
@@ -180,13 +107,18 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
 
   const dateAsDateObject = undefinedAs0.map((row) => {
     const dateString = row[TGL_COLUMN_INDEX] as string | Date | number;
-    const { value: date, error } = coerceToDate(dateString);
+    const { value: date } = coerceToDate(dateString);
     return [date, ...row.slice(1)];
   });
 
   console.log({ dateAsDateObject });
 
-  const partititionedData = partitionByMonth(dateAsDateObject);
+  const dateAsFormattedDateString = dateAsDateObject.map((row) => {
+    const date = row[TGL_COLUMN_INDEX] as Date;
+    return [formatDateToDDMMYYYY(date), ...row.slice(1)];
+  });
+
+  const partititionedData = partitionByMonth(dateAsFormattedDateString);
 
   console.log({ partititionedData });
 
@@ -246,22 +178,6 @@ export const runSingleWorksheetLogic = (rows: Row[]): Row[] => {
   return flattened;
 };
 
-const getRows = (worksheet: ExcelJS.Worksheet): Row[] => {
-  const rows: Row[] = [];
-
-  worksheet.eachRow((row, rowNumber) => {
-    console.log(row.values);
-    console.log({ length: row.values.length });
-    const rowHasValues = checkIfRowShouldBePushed(row);
-    console.log({ rowHasValues });
-    if (!rowHasValues) return;
-    // @ts-ignore
-    rows.push(row.values);
-  });
-
-  return rows;
-};
-
 export const recreateWorksheetWithNewRows = (
   rows: Row[],
   worksheet: ExcelJS.Worksheet,
@@ -277,7 +193,8 @@ export function addSisaSewaAlatAmount(
 ): ExcelJS.Workbook {
   workbook.eachSheet((worksheet) => {
     // if (worksheet.name !== 'BPK ROBI ONE TOWER') return;
-    console.log({ name: worksheet.name });
+
+    if (worksheet.name !== 'TARSIM') return;
 
     const worksheetRows = getRows(worksheet);
 
@@ -310,4 +227,4 @@ async function main() {
   processedWorkbook.xlsx.writeFile(outFilePath);
 }
 
-main();
+// main();

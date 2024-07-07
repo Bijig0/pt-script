@@ -1,6 +1,6 @@
 import { describe, expect, it, jest, mock } from 'bun:test';
 import ExcelJS from 'exceljs';
-import { getTotal, populateHeader } from '../addSisaSewaAlatAmount.js';
+import { getTotal } from '../addSisaSewaAlatAmount.js';
 import { getColumnSums, partitionByMonth } from '../utils.js';
 
 function prepend(value, array) {
@@ -69,40 +69,7 @@ const createMockValueRow = (columnValues: number[]) => {
   return createMockRow(mockCells);
 };
 
-describe('addSisaSewaAlatAmount', () => {
-  // it('should add the rows as expected when given all 0 values', () => {
-  //   const mockWorksheet = createMockSheet([
-  //     createMockRow([createMockCell('Placeholder First Row Empty')]),
-  //     createMockHeaderRow(['CB 220', 'JB 60', 'UH 40']),
-  //     createMockValueRow([0, 0, 0]),
-  //   ]);
-  //   const newRows = runSingleWorksheetLogic(mockWorksheet);
-
-  //   expect(newRows).toEqual([
-  //     ['TGL', 'CB 220', 'JB 60', 'UH 40'],
-  //     ['Sisa Alat', 0, 0, 0],
-  //     ['01/01/2024', 0, 0, 0],
-  //     ['Sisa Alat', 0, 0, 0],
-  //   ]);
-  // });
-
-  it('should populate newRows with the headers', () => {
-    const mockWorksheet = createMockSheet([
-      createMockRow([createMockCell('Placeholder First Row Empty')]),
-      createMockHeaderRow(['CB 220', 'JB 60', 'UH 40']),
-      createMockValueRow([0, 0, 0]),
-    ]);
-
-    const { newRows } = populateHeader(mockWorksheet.getRow(1));
-
-    console.log({ newRows });
-
-    expect(newRows).toEqual([
-      ['TGL', 'CB 220', 'JB 60', 'UH 40'],
-      ['Sisa Alat', 0, 0, 0],
-    ]);
-  });
-});
+describe('addSisaSewaAlatAmount', () => {});
 
 describe('partitionByMonth', () => {
   it('partitions data from different months', () => {
